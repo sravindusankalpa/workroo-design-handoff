@@ -1,3 +1,4 @@
+import os from "os";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { MongoClient } from "mongodb";
@@ -6,7 +7,11 @@ import type { StudioComponent, StudioQuestion } from "./types";
 
 type DbShape = { components: StudioComponent[]; questions: StudioQuestion[] };
 
-const FILE = path.join(process.cwd(), ".data", "studio.json");
+const DATA_DIR =
+  process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+    ? path.join(os.tmpdir(), "workroo-data")
+    : path.join(process.cwd(), ".data");
+const FILE = path.join(DATA_DIR, "studio.json");
 const DEFAULT_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/workroo_design";
 
 type MongoCache = { client?: MongoClient; uri?: string };
@@ -17,22 +22,30 @@ async function fileDb(): Promise<DbShape> {
     return JSON.parse(await readFile(FILE, "utf8")) as DbShape;
   } catch {
     const fresh: DbShape = { components: LIBRARY, questions: [] };
-    await mkdir(path.dirname(FILE), { recursive: true });
-    await writeFile(FILE, JSON.stringify(fresh, null, 2));
+    try {
+      await mkdir(path.dirname(FILE), { recursive: true });
+      await writeFile(FILE, JSON.stringify(fresh, null, 2));
+    } catch (e) {
+      console.error("[fileDb write error]", e);
+    }
     return fresh;
   }
 }
 
 async function saveFile(db: DbShape) {
-  await mkdir(path.dirname(FILE), { recursive: true });
-  await writeFile(FILE, JSON.stringify(db, null, 2));
+  try {
+    await mkdir(path.dirname(FILE), { recursive: true });
+    await writeFile(FILE, JSON.stringify(db, null, 2));
+  } catch (e) {
+    console.error("[saveFile write error]", e);
+  }
 }
 
 async function mongo() {
   try {
     const cache = (g.__workrooMongo ??= {});
     if (!cache.client || cache.uri !== DEFAULT_URI) {
-      const client = new MongoClient(DEFAULT_URI, { serverSelectionTimeoutMS: 10000 });
+      const client = new MongoClient(DEFAULT_URI, { serverSelectionTimeoutMS: 5000 });
       await client.connect();
       cache.client = client;
       cache.uri = DEFAULT_URI;
@@ -44,7 +57,8 @@ async function mongo() {
       await components.insertMany(LIBRARY);
     }
     return { components, questions, connected: true as const };
-  } catch {
+  } catch (err) {
+    console.error("[MongoDB connection failed]", err);
     g.__workrooMongo = {};
     return null;
   }
