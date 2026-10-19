@@ -10,8 +10,7 @@ const FILE = path.join(process.cwd(), ".data", "studio.json");
 const DEFAULT_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/workroo_design";
 
 type MongoCache = { client?: MongoClient; uri?: string };
-const g = globalThis as typeof globalThis & { __workrooMongo?: MongoCache };
-if (!g.__workrooMongo) g.__workrooMongo = {};
+const g = globalThis as unknown as { __workrooMongo?: MongoCache };
 
 async function fileDb(): Promise<DbShape> {
   try {
@@ -31,12 +30,14 @@ async function saveFile(db: DbShape) {
 
 async function mongo() {
   try {
-    if (!g.__workrooMongo.client || g.__workrooMongo.uri !== DEFAULT_URI) {
+    const cache = (g.__workrooMongo ??= {});
+    if (!cache.client || cache.uri !== DEFAULT_URI) {
       const client = new MongoClient(DEFAULT_URI, { serverSelectionTimeoutMS: 10000 });
       await client.connect();
-      g.__workrooMongo = { client, uri: DEFAULT_URI };
+      cache.client = client;
+      cache.uri = DEFAULT_URI;
     }
-    const db = g.__workrooMongo.client!.db();
+    const db = cache.client.db();
     const components = db.collection<StudioComponent>("components");
     const questions = db.collection<StudioQuestion>("questions");
     if ((await components.countDocuments()) === 0) {

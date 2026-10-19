@@ -5,3 +5,4 @@ out
 .env.local
 .data
 .DS_Store
+*.tsbuildinfo
