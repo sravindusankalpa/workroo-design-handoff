@@ -32,7 +32,7 @@ async function saveFile(db: DbShape) {
 async function mongo() {
   try {
     if (!g.__workrooMongo.client || g.__workrooMongo.uri !== DEFAULT_URI) {
-      const client = new MongoClient(DEFAULT_URI, { serverSelectionTimeoutMS: 2500 });
+      const client = new MongoClient(DEFAULT_URI, { serverSelectionTimeoutMS: 10000 });
       await client.connect();
       g.__workrooMongo = { client, uri: DEFAULT_URI };
     }
